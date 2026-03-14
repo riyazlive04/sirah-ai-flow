@@ -45,7 +45,7 @@ const COUNTRY_CODES = [
   { code: "+254", label: "🇰🇪 +254", country: "Kenya" },
 ];
 
-const WHATSAPP_NUMBER = "919999999999";
+const WHATSAPP_NUMBER = "919789961631";
 
 const formatDate = (date: Date) =>
   date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -75,8 +75,9 @@ const BookingCalendarSection = () => {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
-  // Client-side cache: dateStr → Slot[]
-  const slotsCache = useRef<Map<string, Slot[]>>(new Map());
+  // Client-side cache with TTL: dateStr → { slots, timestamp }
+  const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+  const slotsCache = useRef<Map<string, { slots: Slot[]; ts: number }>>(new Map());
 
   const timezone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -96,9 +97,12 @@ const BookingCalendarSection = () => {
     selectedSlot;
 
   // Raw fetch — populates cache, no state side-effects (safe for background prefetch)
-  const fetchSlotsRaw = useCallback(async (dateStr: string): Promise<Slot[]> => {
-    if (slotsCache.current.has(dateStr)) {
-      return slotsCache.current.get(dateStr)!;
+  const fetchSlotsRaw = useCallback(async (dateStr: string, bypassCache = false): Promise<Slot[]> => {
+    if (!bypassCache) {
+      const cached = slotsCache.current.get(dateStr);
+      if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+        return cached.slots;
+      }
     }
     const res = await fetch(
       `${SUPABASE_URL}/functions/v1/get-slots?date=${dateStr}`,
@@ -111,7 +115,7 @@ const BookingCalendarSection = () => {
     );
     const data = await res.json();
     const result: Slot[] = data.success && Array.isArray(data.slots) ? data.slots : [];
-    slotsCache.current.set(dateStr, result);
+    slotsCache.current.set(dateStr, { slots: result, ts: Date.now() });
     return result;
   }, []);
 
@@ -127,12 +131,12 @@ const BookingCalendarSection = () => {
     upcoming.forEach((dateStr) => fetchSlotsRaw(dateStr).catch(() => {}));
   }, [fetchSlotsRaw]);
 
-  // Fetch with loading state — serves instantly from cache if available
+  // Fetch with loading state — serves instantly from cache if fresh
   const fetchSlots = useCallback(async (date: Date) => {
     const dateStr = formatDateParam(date);
     const cached = slotsCache.current.get(dateStr);
-    if (cached) {
-      setSlots(cached);
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      setSlots(cached.slots);
       setLoadingSlots(false);
       return;
     }
@@ -162,6 +166,22 @@ const BookingCalendarSection = () => {
     setSubmitting(true);
 
     try {
+      // Re-fetch fresh slots to check if the selected slot is still available
+      const slotDateKey = formatDateParam(selectedDate);
+      const freshSlots = await fetchSlotsRaw(slotDateKey, true);
+      const stillAvailable = freshSlots.some((s) => s.dateTime === selectedSlot.dateTime);
+      if (!stillAvailable) {
+        setSlots(freshSlots);
+        setSelectedSlot(null);
+        toast({
+          title: "Slot no longer available",
+          description: "This time was just booked. Please select another slot.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
+      }
+
       const meetingTimeISO = new Date(selectedSlot.dateTime).toISOString();
       const bookingPayload = {
         name: name.trim(),
@@ -174,6 +194,7 @@ const BookingCalendarSection = () => {
         website: website.trim() || null,
         challenge: challenge.trim() || null,
         automateProcess: automateProcess.trim() || null,
+        lp_name: "AI Flow",
       };
 
       console.debug("create-booking payload", bookingPayload);
@@ -207,6 +228,7 @@ const BookingCalendarSection = () => {
           automate_process: automateProcess.trim() || null,
           meeting_time: meetingTimeISO,
           meet_link: "https://meet.google.com/rch-shez-jnw",
+          lp_name: "AI Flow",
         });
         if (leadError) {
           console.warn("Lead fallback insert failed (required columns insert)", leadError);
@@ -261,6 +283,7 @@ const BookingCalendarSection = () => {
               dateTime: meetingTimeISO,
               timezone,
               meetLink: forcedMeetLink,
+              lp_name: "AI Flow",
             }),
           });
         } catch (webhookErr) {
@@ -283,6 +306,8 @@ const BookingCalendarSection = () => {
         `Hi! I'd like to book a Free AI Automation Audit.\n\n👤 Name: ${name.trim()}\n🏢 Business: ${businessType}\n📧 Email: ${email.trim()}\n📱 WhatsApp: ${fullWhatsapp}\n🌐 Website: ${website.trim()}\n🔥 Challenge: ${challenge.trim()}${automateProcess.trim() ? `\n⚙️ Automate: ${automateProcess.trim()}` : ""}\n📅 Date: ${dateStr}\n⏰ Time: ${selectedSlot.display}\n🌐 Timezone: ${timezone}\n\nPlease confirm my slot.`
       );
       window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
+      // Invalidate cache for the booked date so other sessions see updated slots
+      slotsCache.current.delete(slotDateKey);
       setConfirmed(true);
     } catch (err) {
       console.error("Booking error:", err);

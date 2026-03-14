@@ -47,7 +47,7 @@
     --dark-navy: 213 68% 15%;
     --dark-navy-light: 212 44% 24%;
 
-    /* Dark section text — high contrast tokens */
+    /* Dark section text - high contrast tokens */
     --dark-text: 0 0% 97%;
     --dark-text-secondary: 210 20% 82%;
     --dark-text-muted: 210 15% 62%;
@@ -145,7 +145,7 @@
     background-color: hsl(var(--section-alt));
   }
 
-  /* Dark section text utilities — accessible contrast on dark backgrounds */
+  /* Dark section text utilities - accessible contrast on dark backgrounds */
   .dark-text {
     color: hsl(var(--dark-text));
   }

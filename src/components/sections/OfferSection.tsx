@@ -22,7 +22,7 @@ const cards = [
 
 const OfferSection = () => (
   <section className="relative overflow-hidden bg-background">
-    {/* Decorative glow orbs — subtle teal */}
+    {/* Decorative glow orbs - subtle teal */}
     <div className="absolute top-1/4 left-[-120px] w-[400px] h-[400px] rounded-full blur-[140px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
     <div className="absolute bottom-1/4 right-[-120px] w-[350px] h-[350px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(210 40% 30% / 0.04)" }} />
     <div className="container section-padding">

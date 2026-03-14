@@ -30,6 +30,7 @@ interface Lead {
   meeting_time: string | null;
   created_at: string;
   attendance_status: AttendanceStatus;
+  lp_name: string | null;
 }
 
 // ── Login Screen ──────────────────────────────────────────────────────────────
@@ -139,7 +140,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }, [fetchLeads]);
 
   const formatDateTime = (iso: string | null) => {
-    if (!iso) return "—";
+    if (!iso) return "-";
     return new Date(iso).toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       month: "short",
@@ -280,7 +281,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  {["S.NO", "ID", "NAME", "EMAIL", "PHONE", "DATE TIME", "TYPE", "ACTIONS"].map(
+                  {["S.NO", "ID", "NAME", "EMAIL", "PHONE", "DATE TIME", "TYPE", "LP NAME", "ACTIONS"].map(
                     (h) => (
                       <th
                         key={h}
@@ -304,9 +305,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       <td className="px-5 py-4 text-gray-500">{i + 1}</td>
                       <td className="px-5 py-4 text-gray-500 font-mono">{shortId(lead.id)}</td>
                       <td className="px-5 py-4 font-medium text-gray-900 whitespace-nowrap">
-                        {lead.name || "—"}
+                        {lead.name || "-"}
                       </td>
-                      <td className="px-5 py-4 text-gray-600">{lead.email || "—"}</td>
+                      <td className="px-5 py-4 text-gray-600">{lead.email || "-"}</td>
                       <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
                         +{lead.country_code?.replace("+", "")}{lead.phone}
                       </td>
@@ -314,7 +315,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                         {formatDateTime(lead.meeting_time || lead.created_at)}
                       </td>
                       <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
-                        {lead.business_type || "—"}
+                        {lead.business_type || "-"}
+                      </td>
+                      <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
+                        {lead.lp_name || "-"}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
