@@ -31,7 +31,7 @@ const stats = [
 
 const AutomationImpactSection = () => (
   <section className="section-dark relative overflow-hidden">
-    <div className="absolute bottom-[-100px] left-[-50px] w-[300px] h-[300px] rounded-full blur-[100px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
+    <div className="absolute bottom-[-100px] left-[-50px] w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full blur-[100px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
     <div className="container section-padding py-14 md:py-20 relative z-10">
       <AnimateIn className="text-center mb-10 md:mb-14">
         <h2 className="text-2xl md:text-4xl font-bold mb-3 dark-text">

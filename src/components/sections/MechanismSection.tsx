@@ -13,7 +13,7 @@ const nodes = [
 
 const MechanismSection = () => (
   <section className="section-dark relative overflow-hidden">
-    <div className="absolute top-[-100px] right-[-100px] w-[400px] h-[400px] rounded-full blur-[100px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
+    <div className="absolute top-[-100px] right-[-100px] w-[250px] h-[250px] md:w-[400px] md:h-[400px] rounded-full blur-[100px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
     <div className="container section-padding relative z-10">
       <AnimateIn className="text-center mb-6 md:mb-10">
         <h2 className="text-2xl md:text-4xl font-bold mb-3 dark-text">Introducing the <span className="text-primary">AI Operations System</span></h2>

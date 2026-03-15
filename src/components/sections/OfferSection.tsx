@@ -23,8 +23,8 @@ const cards = [
 const OfferSection = () => (
   <section className="relative overflow-hidden bg-background">
     {/* Decorative glow orbs - subtle teal */}
-    <div className="absolute top-1/4 left-[-120px] w-[400px] h-[400px] rounded-full blur-[140px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
-    <div className="absolute bottom-1/4 right-[-120px] w-[350px] h-[350px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(210 40% 30% / 0.04)" }} />
+    <div className="absolute top-1/4 left-[-120px] w-[250px] h-[250px] md:w-[400px] md:h-[400px] rounded-full blur-[140px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
+    <div className="absolute bottom-1/4 right-[-120px] w-[220px] h-[220px] md:w-[350px] md:h-[350px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(210 40% 30% / 0.04)" }} />
     <div className="container section-padding">
       <AnimateIn className="text-center mb-4">
         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-5">

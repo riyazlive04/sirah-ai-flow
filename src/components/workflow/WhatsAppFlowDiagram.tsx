@@ -90,7 +90,7 @@ const WhatsAppFlowDiagram = () => {
                   : "md:flex-row-reverse md:justify-end md:pl-[calc(50%+24px)]"
               } pl-14 md:pl-0`}
             >
-              <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-sm min-w-[200px]">
+              <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-sm min-w-0 w-full md:min-w-[200px] md:w-auto">
                 <step.icon className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-xs font-medium text-foreground">{step.time}</span>
                 <div className="ml-auto flex items-center gap-1.5">

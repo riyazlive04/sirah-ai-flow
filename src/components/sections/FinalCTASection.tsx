@@ -11,7 +11,7 @@ const benefits = [
 
 const FinalCTASection = () => (
   <section className="section-dark relative overflow-hidden">
-    <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
+    <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[300px] h-[300px] md:w-[600px] md:h-[600px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
     <div className="container section-padding py-16 md:py-24 relative z-10">
       <AnimateIn className="text-center max-w-2xl mx-auto">
         <h2 className="text-2xl md:text-4xl font-bold mb-4 dark-text">

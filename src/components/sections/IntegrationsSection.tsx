@@ -31,8 +31,8 @@ const IntegrationsSection = () => {
             <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-muted to-transparent z-10 pointer-events-none" />
             <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-muted to-transparent z-10 pointer-events-none" />
             <motion.div
-              className="flex gap-6 py-2"
-              animate={{ x: [0, -800] }}
+              className="flex gap-6 py-2 w-max"
+              animate={{ x: [0, "-50%"] }}
               transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
             >
               {[...integrations, ...integrations].map((item, i) => (

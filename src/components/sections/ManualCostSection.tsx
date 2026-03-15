@@ -23,7 +23,7 @@ const metrics = [
 const ManualCostSection = () => (
   <section className="section-dark relative overflow-hidden">
     <div
-      className="absolute top-[-80px] right-[-60px] w-[280px] h-[280px] rounded-full blur-[100px] pointer-events-none"
+      className="absolute top-[-80px] right-[-60px] w-[180px] h-[180px] md:w-[280px] md:h-[280px] rounded-full blur-[100px] pointer-events-none"
       style={{ background: "hsl(var(--primary) / 0.06)" }}
     />
     <div className="container section-padding py-14 md:py-20 relative z-10">

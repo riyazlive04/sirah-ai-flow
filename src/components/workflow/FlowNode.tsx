@@ -24,8 +24,8 @@ const FlowNode = ({ icon: Icon, label, delay = 0, variant = "default", size = "m
     viewport={{ once: true, margin: "-40px" }}
     transition={{ duration: 0.4, delay }}
     className={cn(
-      "flex flex-col items-center gap-1.5 rounded-xl border shadow-sm px-3 py-2.5 min-w-[80px]",
-      size === "sm" ? "px-2 py-2 min-w-[64px]" : "px-3 py-2.5 min-w-[80px]",
+      "flex flex-col items-center gap-1.5 rounded-xl border shadow-sm",
+      size === "sm" ? "px-2 py-2 min-w-[52px] md:min-w-[64px]" : "px-2.5 py-2 min-w-[60px] md:px-3 md:py-2.5 md:min-w-[80px]",
       variantStyles[variant]
     )}
   >

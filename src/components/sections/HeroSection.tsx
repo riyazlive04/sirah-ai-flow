@@ -13,8 +13,8 @@ const benefits = [
 
 const HeroSection = () => (
   <section className="relative overflow-hidden section-dark">
-    <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
-    <div className="absolute bottom-[-150px] right-[-100px] w-[400px] h-[400px] rounded-full blur-[100px] pointer-events-none" style={{ background: "hsl(210 40% 30% / 0.06)" }} />
+    <div className="absolute top-[-200px] left-[-100px] w-[300px] h-[300px] md:w-[500px] md:h-[500px] rounded-full blur-[120px] pointer-events-none" style={{ background: "hsl(180 70% 42% / 0.04)" }} />
+    <div className="absolute bottom-[-150px] right-[-100px] w-[250px] h-[250px] md:w-[400px] md:h-[400px] rounded-full blur-[100px] pointer-events-none" style={{ background: "hsl(210 40% 30% / 0.06)" }} />
 
     <div className="container section-padding pb-8 md:pb-16 relative z-10">
       <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
