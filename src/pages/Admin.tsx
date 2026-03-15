@@ -216,6 +216,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             business_type: lead.business_type,
             meeting_time: lead.meeting_time,
             attendance_status: status,
+            calendarLink: "https://ai-flow.sirahagents.com/",
           }),
         });
       } catch (webhookErr) {
