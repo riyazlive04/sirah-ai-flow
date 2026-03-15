@@ -303,7 +303,7 @@ const BookingCalendarSection = () => {
         hour12: false,
       });
       const message = encodeURIComponent(
-        `Hi! I'd like to book a Free AI Automation Audit.\n\n👤 Name: ${name.trim()}\n🏢 Business: ${businessType}\n📧 Email: ${email.trim()}\n📱 WhatsApp: ${fullWhatsapp}\n🌐 Website: ${website.trim()}\n🔥 Challenge: ${challenge.trim()}${automateProcess.trim() ? `\n⚙️ Automate: ${automateProcess.trim()}` : ""}\n📅 Date: ${dateStr}\n⏰ Time: ${selectedSlot.display}\n🌐 Timezone: ${timezone}\n\nPlease confirm my slot.`
+        `Hi! I've just booked a *Free AI Automation Blueprint Session* with Sirah Digital.\n\n📅 Date: ${dateStr}\n⏰ Time: ${selectedSlot.display}\n\n👤 Name: ${name.trim()}\n📧 Email: ${email.trim()}\n📱 Phone: ${fullWhatsapp}\n\n🏢 Business Type: ${businessType}\n\nLooking forward to the call!`
       );
       window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
       // Invalidate cache for the booked date so other sessions see updated slots
