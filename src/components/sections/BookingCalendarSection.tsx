@@ -198,7 +198,7 @@ const BookingCalendarSection = () => {
       };
 
       console.debug("create-booking payload", bookingPayload);
-      const bookingRes = await fetch(`${SUPABASE_URL}/functions/v1/create-booking`, {
+      const bookingRes = await fetch(`${SUPABASE_URL}/functions/v1/book-meeting`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
