@@ -6,14 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Clock, CalendarIcon, CheckCircle, Loader2 } from "lucide-react";
 import AnimateIn from "@/components/AnimateIn";
 import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/hooks/use-toast";import { supabase } from "@/lib/supabase";
-const SUPABASE_URL = "https://lbsiyqbhjatlmqphjitf.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxic2l5cWJoamF0bG1xcGhqaXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MzYyMTgsImV4cCI6MjA4ODExMjIxOH0.iWUso735ZmnaqI-WxtlSvhboFFPDMRPzETlCN9wzYDI";
-
-interface Slot {
-  dateTime: string;
-  display: string;
-}
+import { useToast } from "@/hooks/use-toast";
+import { getAvailableSlots, createBooking, type Slot } from "@/services/booking";
 
 const BUSINESS_TYPES = [
   "Clinic / Healthcare",
@@ -104,17 +98,7 @@ const BookingCalendarSection = () => {
         return cached.slots;
       }
     }
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/get-slots?date=${dateStr}`,
-      {
-        headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          apikey: SUPABASE_ANON_KEY,
-        },
-      }
-    );
-    const data = await res.json();
-    const result: Slot[] = data.success && Array.isArray(data.slots) ? data.slots : [];
+    const result = await getAvailableSlots(dateStr);
     slotsCache.current.set(dateStr, { slots: result, ts: Date.now() });
     return result;
   }, []);
@@ -182,127 +166,55 @@ const BookingCalendarSection = () => {
         return;
       }
 
-      // Store meeting time in IST (strip the offset so DB stores the literal IST value)
-      const meetingTimeIST = selectedSlot.dateTime.replace(/\+05:30$/, "");
-      const bookingPayload = {
+      const payload = {
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        phone: fullWhatsapp,
-        country_code: countryCode,
+        phone: whatsappNumber.trim(),
         countryCode,
         businessType,
-        dateTime: meetingTimeIST,
-        website: website.trim() || null,
-        challenge: challenge.trim() || null,
-        automateProcess: automateProcess.trim() || null,
-        lp_name: "AI Flow",
+        website: website.trim(),
+        challenge: challenge.trim(),
+        automateProcess: automateProcess.trim(),
+        dateTime: selectedSlot.dateTime,
       };
 
-      console.debug("create-booking payload", bookingPayload);
-      const bookingRes = await fetch(`${SUPABASE_URL}/functions/v1/book-meeting`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          apikey: SUPABASE_ANON_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bookingPayload),
-      });
+      console.debug("create-booking payload", payload);
+      const result = await createBooking(payload, "AI Flow");
 
-      const bookingData = await bookingRes.json();
-      let bookingWorks = bookingRes.ok && bookingData.success;
-      if (!bookingWorks) {
-        console.warn("Booking function failed, will fallback to direct lead insert", bookingData);
-      }
-
-      // Save the lead row directly as fallback. Save required and booking details.
-      let leadInsertOk = false;
-      try {
-        const { data: leadData, error: leadError } = await supabase.from("leads").insert({
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          phone: whatsappNumber.trim(),
-          country_code: countryCode,
-          business_type: businessType,
-          website: website.trim() || null,
-          challenge: challenge.trim() || null,
-          automate_process: automateProcess.trim() || null,
-          meeting_time: meetingTimeIST,
-          meet_link: "https://meet.google.com/rch-shez-jnw",
-          lp_name: "AI Flow",
-        });
-        if (leadError) {
-          console.warn("Lead fallback insert failed (required columns insert)", leadError);
-          // If required insert failed, no better fallback available.
-        } else {
-          console.debug("Lead fallback insert succeeded", leadData);
-          leadInsertOk = true;
-        }
-      } catch (leadErr) {
-        console.error("Lead fallback insert exception", leadErr);
-      }
-
-      if (!bookingWorks && !leadInsertOk) {
+      if (!result.success) {
         toast({
           title: "Booking failed",
-          description:
-            bookingData?.error || bookingData?.message || "Could not create booking or save lead.",
+          description: result.error || "Could not create booking.",
           variant: "destructive",
         });
         return;
       }
 
-      const forcedMeetLink = "https://meet.google.com/rch-shez-jnw";
-      setMeetLink(forcedMeetLink);
-      if (!bookingWorks) {
-        toast({
-          title: "Lead captured",
-          description: "We saved your lead and will confirm your slot shortly.",
-        });
-      } else {
-        toast({
-          title: "Booking confirmed! 🎉",
-          description: "A calendar invite has been created. Check your email.",
-        });
-      }
-
-      // Trigger webhook after successful lead save (booking or fallback)
-      if (bookingWorks || leadInsertOk) {
-        try {
-          await fetch("https://n8n.srv930949.hstgr.cloud/webhook/book-meetings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: name.trim(),
-              email: email.trim().toLowerCase(),
-              phone: whatsappNumber.trim(),
-              country_code: countryCode,
-              businessType,
-              website: website.trim() || null,
-              challenge: challenge.trim() || null,
-              automateProcess: automateProcess.trim() || null,
-              dateTime: meetingTimeIST,
-              timezone,
-              meetLink: forcedMeetLink,
-              lp_name: "AI Flow",
-            }),
-          });
-        } catch (webhookErr) {
-          console.error("Webhook trigger failed", webhookErr);
-        }
-      }
-
-      // 3. Open WhatsApp with confirmation message
-      const dateStr = formatDate(selectedDate);
-      const meetingTimeIST = new Date(selectedSlot.dateTime).toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
+      setMeetLink(result.meet_link || "");
+      toast({
+        title: "Booking confirmed! 🎉",
+        description: "A calendar invite has been created. Check your email.",
       });
+
+      // Trigger webhook after successful booking
+      try {
+        await fetch("https://n8n.srv930949.hstgr.cloud/webhook/book-meetings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            timezone,
+            meetLink: result.meet_link || "",
+            calendarLink: result.calendar_link || "",
+            lp_name: "AI Flow",
+          }),
+        });
+      } catch (webhookErr) {
+        console.error("Webhook trigger failed", webhookErr);
+      }
+
+      // Open WhatsApp with confirmation message
+      const dateStr = formatDate(selectedDate);
       const message = encodeURIComponent(
         `Hi! I've just booked a *Free AI Automation Blueprint Session* with Sirah Digital.\n\n📅 Date: ${dateStr}\n⏰ Time: ${selectedSlot.display}\n\n👤 Name: ${name.trim()}\n📧 Email: ${email.trim()}\n📱 Phone: ${fullWhatsapp}\n\n🏢 Business Type: ${businessType}\n\nLooking forward to the call!`
       );
