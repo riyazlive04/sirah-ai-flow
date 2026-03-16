@@ -1,16 +1,16 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { google } from "npm:googleapis@126";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
+const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const IST_OFFSET = "+05:30";
-
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: CORS });
   }
 
   try {
@@ -20,252 +20,200 @@ Deno.serve(async (req) => {
       phone,
       countryCode,
       businessType,
+      dateTime,
       website,
       challenge,
       automateProcess,
-      dateTime,
-      lp_name,
+      lp_name
     } = await req.json();
 
-    if (!name || !email || !dateTime) {
+    if (!name || !email || !phone || !countryCode || !businessType || !dateTime) {
       return new Response(
-        JSON.stringify({ success: false, error: "Missing required fields (name, email, dateTime)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "Missing required fields" }),
+        { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("Booking request:", { name, email, dateTime });
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Parse the dateTime to get a bare IST timestamp for slot_time lookup
-    // dateTime arrives as "2026-03-16T10:00:00+05:30"
-    const slotDate = new Date(dateTime);
-    const istMs = slotDate.getTime() + 5.5 * 60 * 60 * 1000;
-    const istDate = new Date(istMs);
-    const slotTimeIST = istDate.toISOString().slice(0, 19); // bare IST timestamp
+    /* ---------------------------------------------------- */
+    /* STEP 1 — Lock slot                                  */
+    /* ---------------------------------------------------- */
 
-    // --- Step 1: Atomically reserve the slot ---
-    const { data: reserved, error: reserveError } = await supabase
+    const { data: slot, error: slotError } = await supabase
       .from("calendar_events")
       .update({ status: "booked" })
-      .eq("slot_time", slotTimeIST)
+      .eq("slot_time", dateTime)
       .eq("status", "available")
-      .select("id")
-      .maybeSingle();
+      .select()
+      .single();
 
-    if (reserveError) {
-      console.error("Reserve error:", reserveError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Failed to reserve slot" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!reserved) {
+    if (slotError || !slot) {
+      console.error("Slot already booked:", slotError);
       return new Response(
         JSON.stringify({ success: false, error: "Slot already booked" }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
 
-    // --- Step 2: Insert lead into leads table ---
-    const { data: lead, error: leadError } = await supabase
+    /* ---------------------------------------------------- */
+    /* STEP 2 — Insert lead                                */
+    /* ---------------------------------------------------- */
+
+    const fullPhone = `${countryCode}${phone}`;
+
+    const { data: leadData, error: leadError } = await supabase
       .from("leads")
       .insert({
-        name,
-        email,
-        phone,
-        country_code: countryCode,
+        name: name,
+        email: email,
         business_type: businessType,
-        website,
-        challenge,
-        automate_process: automateProcess,
-        meeting_time: slotTimeIST,
-        lp_name: lp_name || null,
+        country_code: countryCode,
+        phone: phone,
+        full_phone: fullPhone,
+        meeting_time: new Date(dateTime),
+        website: website || null,
+        challenge: challenge || null,
+        automate_process: automateProcess || null,
+        lp_name: lp_name || "AI Flow"
       })
       .select("id")
       .single();
 
     if (leadError) {
       console.error("Lead insert error:", leadError);
-      // Rollback: release the slot
-      await supabase
-        .from("calendar_events")
-        .update({ status: "available" })
-        .eq("id", reserved.id);
-      return new Response(
-        JSON.stringify({ success: false, error: "Failed to create lead" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      throw new Error("Lead insert failed");
     }
 
-    // --- Step 3: Link lead to the calendar event ---
+    const leadId = leadData.id;
+
+    console.log("Lead created:", leadId);
+
+    /* ---------------------------------------------------- */
+    /* STEP 3 — Link slot to lead                          */
+    /* ---------------------------------------------------- */
+
     await supabase
       .from("calendar_events")
-      .update({ lead_id: lead.id })
-      .eq("id", reserved.id);
+      .update({ lead_id: leadId })
+      .eq("slot_time", dateTime);
 
-    // --- Step 4: Create Google Calendar event ---
-    let meet_link: string | undefined;
-    let calendar_link: string | undefined;
+    /* ---------------------------------------------------- */
+    /* STEP 4 — Create Google Calendar Event               */
+    /* ---------------------------------------------------- */
 
-    try {
-      const gcalCreds = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
-      if (gcalCreds) {
-        const creds = JSON.parse(gcalCreds);
-        const calendarId = Deno.env.get("GOOGLE_CALENDAR_ID") || creds.client_email;
-        const token = await getGoogleAccessToken(creds);
+    const serviceAccount = JSON.parse(
+      Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON")!
+    );
 
-        const startTime = dateTime;
-        // End time = start + 1 hour
-        const endDate = new Date(slotDate.getTime() + 60 * 60 * 1000);
-        const endTime = endDate.toISOString().replace("Z", IST_OFFSET);
+    const auth = new google.auth.JWT(
+      serviceAccount.client_email,
+      undefined,
+      serviceAccount.private_key,
+      ["https://www.googleapis.com/auth/calendar"]
+    );
 
-        const eventRes = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              summary: `Meeting with ${name}`,
-              description: [
-                `Name: ${name}`,
-                `Email: ${email}`,
-                `Phone: ${countryCode || ""} ${phone || ""}`.trim(),
-                `Business: ${businessType || ""}`,
-                `Website: ${website || ""}`,
-                `Challenge: ${challenge || ""}`,
-                `Automate: ${automateProcess || ""}`,
-              ].join("\n"),
-              start: { dateTime: startTime, timeZone: "Asia/Kolkata" },
-              end: { dateTime: endTime, timeZone: "Asia/Kolkata" },
-              conferenceData: {
-                createRequest: {
-                  requestId: `booking-${reserved.id}`,
-                  conferenceSolutionKey: { type: "hangoutsMeet" },
-                },
-              },
-              attendees: [{ email }],
-            }),
+    const calendar = google.calendar({ version: "v3", auth });
+
+    const endTime = new Date(new Date(dateTime).getTime() + 45 * 60000);
+
+    const event = await calendar.events.insert({
+      calendarId: Deno.env.get("GOOGLE_CALENDAR_ID"),
+      conferenceDataVersion: 1,
+      requestBody: {
+        summary: `Strategy Call with ${name}`,
+        description: `
+Name: ${name}
+Email: ${email}
+Phone: ${fullPhone}
+Business: ${businessType}
+        `,
+        start: {
+          dateTime: dateTime,
+          timeZone: "Asia/Kolkata"
+        },
+        end: {
+          dateTime: endTime.toISOString(),
+          timeZone: "Asia/Kolkata"
+        },
+        conferenceData: {
+          createRequest: {
+            requestId: crypto.randomUUID()
           }
-        );
-
-        if (eventRes.ok) {
-          const eventData = await eventRes.json();
-          meet_link = eventData.conferenceData?.entryPoints?.find(
-            (ep: { entryPointType: string; uri: string }) => ep.entryPointType === "video"
-          )?.uri;
-          calendar_link = eventData.htmlLink;
-
-          // Store meet_link on the lead
-          if (meet_link) {
-            await supabase
-              .from("leads")
-              .update({ meet_link })
-              .eq("id", lead.id);
-          }
-        } else {
-          const errText = await eventRes.text();
-          console.error("Google Calendar event creation failed:", errText);
         }
       }
-    } catch (gcalErr) {
-      console.error("Google Calendar error (non-fatal):", gcalErr);
-    }
+    });
 
-    // --- Step 5: Trigger n8n webhook ---
+    console.log("Google event created:", event.data.id);
+
+    const meetLink =
+      event.data.conferenceData?.entryPoints?.find(
+        (x) => x.entryPointType === "video"
+      )?.uri || event.data.htmlLink;
+
+    /* ---------------------------------------------------- */
+    /* STEP 5 — Update lead with Meet link                 */
+    /* ---------------------------------------------------- */
+
+    await supabase
+      .from("leads")
+      .update({ meet_link: meetLink })
+      .eq("id", leadId);
+
+    /* ---------------------------------------------------- */
+    /* STEP 6 — Send n8n webhook                           */
+    /* ---------------------------------------------------- */
+
     try {
-      const webhookUrl = "https://n8n.srv930949.hstgr.cloud/webhook/book-meetings";
-      await fetch(webhookUrl, {
+      await fetch("https://n8n.srv930949.hstgr.cloud/webhook/book-meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          leadId,
           name,
           email,
-          phone: `${countryCode || ""} ${phone || ""}`.trim(),
+          phone: fullPhone,
           businessType,
           website,
           challenge,
           automateProcess,
           dateTime,
-          meet_link,
-          calendar_link,
-          calendarLink: calendar_link,
-          lp_name,
-        }),
+          meetLink
+        })
       });
-    } catch (webhookErr) {
-      console.error("Webhook error (non-fatal):", webhookErr);
+
+      console.log("n8n webhook triggered");
+    } catch (err) {
+      console.error("n8n webhook failed:", err);
     }
 
+    /* ---------------------------------------------------- */
+    /* SUCCESS RESPONSE                                    */
+    /* ---------------------------------------------------- */
+
     return new Response(
-      JSON.stringify({ success: true, meet_link, calendar_link }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        success: true,
+        meet_link: meetLink,
+        message: "Booking confirmed"
+      }),
+      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
     );
-  } catch (err) {
+
+  } catch (error) {
+    console.error("Booking error:", error);
+
     return new Response(
-      JSON.stringify({ success: false, error: String(err) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        success: false,
+        error: error.message || "Booking failed"
+      }),
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
     );
   }
 });
-
-// --- Google Auth Helper ---
-async function getGoogleAccessToken(creds: {
-  client_email: string;
-  private_key: string;
-}): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const payload = btoa(
-    JSON.stringify({
-      iss: creds.client_email,
-      scope: "https://www.googleapis.com/auth/calendar",
-      aud: "https://oauth2.googleapis.com/token",
-      iat: now,
-      exp: now + 3600,
-    })
-  );
-
-  const signInput = `${header}.${payload}`;
-
-  const pemBody = creds.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
-  const keyData = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
-
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    keyData,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const sig = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    new TextEncoder().encode(signInput)
-  );
-  const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-
-  const jwt = `${header}.${payload}.${signature}`;
-
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
-  });
-
-  const tokenData = await tokenRes.json();
-  return tokenData.access_token;
-}
