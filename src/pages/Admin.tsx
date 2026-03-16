@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Loader2, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { formatIST } from "@/utils/formatIST";
 
 const SUPABASE_URL = "https://lbsiyqbhjatlmqphjitf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxic2l5cWJoamF0bG1xcGhqaXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MzYyMTgsImV4cCI6MjA4ODExMjIxOH0.iWUso735ZmnaqI-WxtlSvhboFFPDMRPzETlCN9wzYDI";
@@ -138,18 +139,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
-
-  const formatDateTime = (iso: string | null) => {
-    if (!iso) return "-";
-    return new Date(iso).toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
 
   const shortId = (id: string) => id.replace(/-/g, "").slice(0, 5);
 
@@ -313,7 +302,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                         +{lead.country_code?.replace("+", "")}{lead.phone}
                       </td>
                       <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
-                        {formatDateTime(lead.meeting_time || lead.created_at)}
+                        {formatIST(lead.meeting_time || lead.created_at)}
                       </td>
                       <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
                         {lead.business_type || "-"}
