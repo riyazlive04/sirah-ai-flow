@@ -50,31 +50,27 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Date range: start of day to end of day in UTC
-    // IST is UTC+5:30, so 10:00 IST = 04:30 UTC, 18:00 IST = 12:30 UTC
-    const dayStartUTC = new Date(`${dateStr}T00:00:00${IST_OFFSET}`).toISOString();
-    const dayEndUTC = new Date(`${dateStr}T23:59:59${IST_OFFSET}`).toISOString();
+    // Date range: start of day to end of day in IST (stored without offset)
+    const dayStartIST = `${dateStr}T00:00:00`;
+    const dayEndIST = `${dateStr}T23:59:59`;
 
     const { data: bookedLeads, error: dbError } = await supabase
       .from("leads")
       .select("meeting_time")
-      .gte("meeting_time", dayStartUTC)
-      .lt("meeting_time", dayEndUTC);
+      .gte("meeting_time", dayStartIST)
+      .lt("meeting_time", dayEndIST);
 
     if (dbError) {
       console.error("DB query error:", dbError);
     }
 
-    // Collect booked hours in IST
+    // Collect booked hours in IST (meeting_time is stored as bare IST)
     const bookedHoursIST = new Set<number>();
     if (bookedLeads && bookedLeads.length > 0) {
       for (const lead of bookedLeads) {
         if (lead.meeting_time) {
-          // Convert UTC meeting_time to IST hour
           const d = new Date(lead.meeting_time);
-          // IST = UTC + 5:30
-          const istHour = (d.getUTCHours() + 5 + Math.floor((d.getUTCMinutes() + 30) / 60)) % 24;
-          bookedHoursIST.add(istHour);
+          bookedHoursIST.add(d.getHours());
         }
       }
     }
@@ -126,17 +122,19 @@ Deno.serve(async (req) => {
     // Filter out booked slots
     const availableSlots = allSlots.filter((slot) => {
       const slotDate = new Date(slot.dateTime);
-      const istHour = (slotDate.getUTCHours() + 5 + Math.floor((slotDate.getUTCMinutes() + 30) / 60)) % 24;
+      const istHour = slotDate.getHours();
       return !bookedHoursIST.has(istHour) && !gcalBusyHours.has(istHour);
     });
 
     // Also filter out past slots if the date is today
-    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const nowUTC = Date.now();
+    const nowIST = new Date(nowUTC + 5.5 * 60 * 60 * 1000);
     const todayStr = nowIST.toISOString().slice(0, 10);
+    const nowISTHour = nowIST.getUTCHours();
     const finalSlots = dateStr === todayStr
       ? availableSlots.filter((slot) => {
           const slotDate = new Date(slot.dateTime);
-          return slotDate.getTime() > Date.now();
+          return slotDate.getHours() > nowISTHour;
         })
       : availableSlots;
 

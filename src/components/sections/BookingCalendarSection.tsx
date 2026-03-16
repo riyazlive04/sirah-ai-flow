@@ -182,7 +182,8 @@ const BookingCalendarSection = () => {
         return;
       }
 
-      const meetingTimeISO = new Date(selectedSlot.dateTime).toISOString();
+      // Store meeting time in IST (strip the offset so DB stores the literal IST value)
+      const meetingTimeIST = selectedSlot.dateTime.replace(/\+05:30$/, "");
       const bookingPayload = {
         name: name.trim(),
         email: email.trim().toLowerCase(),
@@ -190,7 +191,7 @@ const BookingCalendarSection = () => {
         country_code: countryCode,
         countryCode,
         businessType,
-        dateTime: meetingTimeISO,
+        dateTime: meetingTimeIST,
         website: website.trim() || null,
         challenge: challenge.trim() || null,
         automateProcess: automateProcess.trim() || null,
@@ -226,7 +227,7 @@ const BookingCalendarSection = () => {
           website: website.trim() || null,
           challenge: challenge.trim() || null,
           automate_process: automateProcess.trim() || null,
-          meeting_time: meetingTimeISO,
+          meeting_time: meetingTimeIST,
           meet_link: "https://meet.google.com/rch-shez-jnw",
           lp_name: "AI Flow",
         });
@@ -280,7 +281,7 @@ const BookingCalendarSection = () => {
               website: website.trim() || null,
               challenge: challenge.trim() || null,
               automateProcess: automateProcess.trim() || null,
-              dateTime: meetingTimeISO,
+              dateTime: meetingTimeIST,
               timezone,
               meetLink: forcedMeetLink,
               lp_name: "AI Flow",
