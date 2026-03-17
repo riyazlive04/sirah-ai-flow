@@ -65,34 +65,51 @@ serve(async (req) => {
     /* STEP 2 — Insert lead                                */
     /* ---------------------------------------------------- */
 
-    const fullPhone = `${countryCode}${phone}`;
+    // FIX 2: Normalize phone formats
+    const cleanPhone = phone.replace(/\D/g, "");
+    const normalizedCountryCode = countryCode.startsWith("+") ? countryCode : `+${countryCode}`;
+    const fullPhone = `${normalizedCountryCode}${cleanPhone}`;
 
-    const { data: leadData, error: leadError } = await supabase
+    // FIX 1: Check for duplicate lead (same email + meeting_time)
+    const { data: existingLead } = await supabase
       .from("leads")
-      .insert({
-        name: name,
-        email: email,
-        business_type: businessType,
-        country_code: countryCode,
-        phone: phone,
-        full_phone: fullPhone,
-        meeting_time: new Date(dateTime),
-        website: website || null,
-        challenge: challenge || null,
-        automate_process: automateProcess || null,
-        lp_name: lp_name || "AI Flow"
-      })
       .select("id")
-      .single();
+      .eq("email", email)
+      .eq("meeting_time", new Date(dateTime).toISOString())
+      .maybeSingle();
 
-    if (leadError) {
-      console.error("Lead insert error:", leadError);
-      throw new Error("Lead insert failed");
+    let leadId: string;
+
+    if (existingLead) {
+      console.log("Duplicate lead found, using existing:", existingLead.id);
+      leadId = existingLead.id;
+    } else {
+      const { data: leadData, error: leadError } = await supabase
+        .from("leads")
+        .insert({
+          name: name,
+          email: email,
+          business_type: businessType,
+          country_code: normalizedCountryCode,
+          phone: cleanPhone,
+          full_phone: fullPhone,
+          meeting_time: new Date(dateTime),
+          website: website || null,
+          challenge: challenge || null,
+          automate_process: automateProcess || null,
+          lp_name: lp_name || "AI Flow"
+        })
+        .select("id")
+        .single();
+
+      if (leadError) {
+        console.error("Lead insert error:", leadError);
+        throw new Error("Lead insert failed");
+      }
+
+      leadId = leadData.id;
+      console.log("Lead created:", leadId);
     }
-
-    const leadId = leadData.id;
-
-    console.log("Lead created:", leadId);
 
     /* ---------------------------------------------------- */
     /* STEP 3 — Link slot to lead                          */
@@ -143,7 +160,8 @@ Business: ${businessType}
         },
         conferenceData: {
           createRequest: {
-            requestId: crypto.randomUUID()
+            requestId: crypto.randomUUID(),
+            conferenceSolutionKey: { type: "hangoutsMeet" }
           }
         }
       }
@@ -174,16 +192,18 @@ Business: ${businessType}
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          leadId,
           name,
           email,
-          phone: fullPhone,
+          phone: cleanPhone,
+          country_code: normalizedCountryCode,
           businessType,
           website,
           challenge,
           automateProcess,
           dateTime,
-          meetLink
+          timezone: "Asia/Calcutta",
+          meetLink,
+          lp_name: lp_name || "AI Flow"
         })
       });
 
