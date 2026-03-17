@@ -66,8 +66,13 @@ serve(async (req) => {
     /* ---------------------------------------------------- */
 
     // FIX 2: Normalize phone formats
-    const cleanPhone = phone.replace(/\D/g, "");
-    const normalizedCountryCode = countryCode.startsWith("+") ? countryCode : `+${countryCode}`;
+    const codeDigits = countryCode.replace(/\D/g, "");
+    const normalizedCountryCode = `+${codeDigits}`;
+    // Strip non-digits, then remove leading country code if frontend already included it
+    let cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.startsWith(codeDigits)) {
+      cleanPhone = cleanPhone.slice(codeDigits.length);
+    }
     const fullPhone = `${normalizedCountryCode}${cleanPhone}`;
 
     // FIX 1: Check for duplicate lead (same email + meeting_time)
