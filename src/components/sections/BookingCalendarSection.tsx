@@ -196,23 +196,6 @@ const BookingCalendarSection = () => {
         description: "A calendar invite has been created. Check your email.",
       });
 
-      // Trigger webhook after successful booking
-      try {
-        await fetch("https://n8n.srv930949.hstgr.cloud/webhook/book-meetings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...payload,
-            timezone,
-            meetLink: result.meet_link || "",
-            calendarLink: result.calendar_link || "",
-            lp_name: "AI Flow",
-          }),
-        });
-      } catch (webhookErr) {
-        console.error("Webhook trigger failed", webhookErr);
-      }
-
       // Open WhatsApp with confirmation message
       const dateStr = formatDate(selectedDate);
       const message = encodeURIComponent(
