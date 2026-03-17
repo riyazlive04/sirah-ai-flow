@@ -129,43 +129,49 @@ serve(async (req) => {
       ["https://www.googleapis.com/auth/calendar"]
     );
 
-    const calendar = google.calendar({ version: "v3", auth });
+    await auth.authorize();
+    const token = auth.credentials.access_token;
 
+    const calendarId = Deno.env.get("GOOGLE_CALENDAR_ID") || serviceAccount.client_email;
     const endTime = new Date(new Date(dateTime).getTime() + 45 * 60000);
 
-    const event = await calendar.events.insert({
-      calendarId: Deno.env.get("GOOGLE_CALENDAR_ID"),
-      conferenceDataVersion: 1,
-      requestBody: {
-        summary: `Strategy Call with ${name}`,
-        description: `
-Name: ${name}
-Email: ${email}
-Phone: ${fullPhone}
-Business: ${businessType}
-        `,
-        start: {
-          dateTime: dateTime,
-          timeZone: "Asia/Kolkata"
+    const eventRes = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        end: {
-          dateTime: endTime.toISOString(),
-          timeZone: "Asia/Kolkata"
-        },
-        conferenceData: {
-          createRequest: {
-            requestId: crypto.randomUUID()
-          }
-        }
+        body: JSON.stringify({
+          summary: `Strategy Call with ${name}`,
+          description: `Name: ${name}\nEmail: ${email}\nPhone: ${fullPhone}\nBusiness: ${businessType}`,
+          start: { dateTime: dateTime, timeZone: "Asia/Kolkata" },
+          end: { dateTime: endTime.toISOString(), timeZone: "Asia/Kolkata" },
+          conferenceData: {
+            createRequest: {
+              requestId: crypto.randomUUID(),
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+          attendees: [{ email }],
+        }),
       }
-    });
+    );
 
-    console.log("Google event created:", event.data.id);
+    if (!eventRes.ok) {
+      const errText = await eventRes.text();
+      console.error("Google Calendar event creation failed:", errText);
+      throw new Error("Google Calendar event creation failed");
+    }
+
+    const eventData = await eventRes.json();
+    console.log("Google event created:", eventData.id);
 
     const meetLink =
-      event.data.conferenceData?.entryPoints?.find(
-        (x: any) => x.entryPointType === "video"
-      )?.uri || event.data.hangoutLink || event.data.htmlLink;
+      eventData.conferenceData?.entryPoints?.find(
+        (ep: any) => ep.entryPointType === "video"
+      )?.uri || eventData.hangoutLink || eventData.htmlLink;
 
     /* ---------------------------------------------------- */
     /* STEP 5 — Update lead with Meet link                 */
