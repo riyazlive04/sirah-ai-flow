@@ -154,8 +154,7 @@ Business: ${businessType}
         },
         conferenceData: {
           createRequest: {
-            requestId: crypto.randomUUID(),
-            conferenceSolutionKey: { type: "hangoutsMeet" }
+            requestId: crypto.randomUUID()
           }
         }
       }
