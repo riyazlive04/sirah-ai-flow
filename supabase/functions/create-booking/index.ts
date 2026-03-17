@@ -75,46 +75,35 @@ serve(async (req) => {
     }
     const fullPhone = `${normalizedCountryCode}${cleanPhone}`;
 
-    // FIX 1: Check for duplicate lead (same email + meeting_time)
-    const { data: existingLead } = await supabase
+    // FIX 1: Upsert lead — unique constraint on (email, meeting_time) prevents duplicates
+    const { data: leadData, error: leadError } = await supabase
       .from("leads")
-      .select("id")
-      .eq("email", email)
-      .eq("meeting_time", new Date(dateTime).toISOString())
-      .maybeSingle();
-
-    let leadId: string;
-
-    if (existingLead) {
-      console.log("Duplicate lead found, using existing:", existingLead.id);
-      leadId = existingLead.id;
-    } else {
-      const { data: leadData, error: leadError } = await supabase
-        .from("leads")
-        .insert({
+      .upsert(
+        {
           name: name,
           email: email,
           business_type: businessType,
           country_code: normalizedCountryCode,
           phone: cleanPhone,
           full_phone: fullPhone,
-          meeting_time: new Date(dateTime),
+          meeting_time: new Date(dateTime).toISOString(),
           website: website || null,
           challenge: challenge || null,
           automate_process: automateProcess || null,
           lp_name: lp_name || "AI Flow"
-        })
-        .select("id")
-        .single();
+        },
+        { onConflict: "email,meeting_time" }
+      )
+      .select("id")
+      .single();
 
-      if (leadError) {
-        console.error("Lead insert error:", leadError);
-        throw new Error("Lead insert failed");
-      }
-
-      leadId = leadData.id;
-      console.log("Lead created:", leadId);
+    if (leadError) {
+      console.error("Lead upsert error:", leadError);
+      throw new Error("Lead upsert failed");
     }
+
+    const leadId = leadData.id;
+    console.log("Lead upserted:", leadId);
 
     /* ---------------------------------------------------- */
     /* STEP 3 — Link slot to lead                          */
@@ -176,8 +165,8 @@ Business: ${businessType}
 
     const meetLink =
       event.data.conferenceData?.entryPoints?.find(
-        (x) => x.entryPointType === "video"
-      )?.uri || event.data.htmlLink;
+        (x: any) => x.entryPointType === "video"
+      )?.uri || event.data.hangoutLink || event.data.htmlLink;
 
     /* ---------------------------------------------------- */
     /* STEP 5 — Update lead with Meet link                 */
