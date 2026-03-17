@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { google } from "npm:googleapis@126";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS = {
@@ -122,15 +121,7 @@ serve(async (req) => {
       Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON")!
     );
 
-    const auth = new google.auth.JWT(
-      serviceAccount.client_email,
-      undefined,
-      serviceAccount.private_key,
-      ["https://www.googleapis.com/auth/calendar"]
-    );
-
-    await auth.authorize();
-    const token = auth.credentials.access_token;
+    const token = await getGoogleAccessToken(serviceAccount);
 
     const calendarId = Deno.env.get("GOOGLE_CALENDAR_ID") || serviceAccount.client_email;
     const endTime = new Date(new Date(dateTime).getTime() + 45 * 60000);
@@ -236,3 +227,58 @@ serve(async (req) => {
     );
   }
 });
+
+// --- Google Auth Helper (manual JWT signing for Deno compatibility) ---
+async function getGoogleAccessToken(creds: {
+  client_email: string;
+  private_key: string;
+}): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payload = btoa(
+    JSON.stringify({
+      iss: creds.client_email,
+      scope: "https://www.googleapis.com/auth/calendar",
+      aud: "https://oauth2.googleapis.com/token",
+      iat: now,
+      exp: now + 3600,
+    })
+  );
+
+  const signInput = `${header}.${payload}`;
+
+  const pemBody = creds.private_key
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\n/g, "");
+  const keyData = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    keyData,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const sig = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(signInput)
+  );
+  const signature = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const jwt = `${header}.${payload}.${signature}`;
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+
+  const tokenData = await tokenRes.json();
+  return tokenData.access_token;
+}
