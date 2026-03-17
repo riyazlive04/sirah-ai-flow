@@ -203,8 +203,8 @@ const BookingCalendarSection = () => {
       );
       window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
       // Fire Meta Pixel Lead conversion event
-      if (typeof window.fbq === "function") {
-        window.fbq("track", "Lead");
+      if (typeof (window as any).fbq === "function") {
+        (window as any).fbq("track", "Lead");
       }
       // Invalidate cache for the booked date so other sessions see updated slots
       slotsCache.current.delete(slotDateKey);
