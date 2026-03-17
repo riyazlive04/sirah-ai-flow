@@ -197,6 +197,10 @@ const BookingCalendarSection = () => {
 
       });
 
+      if (typeof window.fbq === "function") {
+        window.fbq("track", "Lead");
+      }
+
       // Open WhatsApp with confirmation message
       const dateStr = formatDate(selectedDate);
       const message = encodeURIComponent(
