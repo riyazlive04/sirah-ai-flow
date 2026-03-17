@@ -194,6 +194,7 @@ const BookingCalendarSection = () => {
       toast({
         title: "Booking confirmed! 🎉",
         description: "A calendar invite has been created. Check your email.",
+
       });
 
       // Open WhatsApp with confirmation message
@@ -202,10 +203,6 @@ const BookingCalendarSection = () => {
         `Hi! I've just booked a *Free AI Automation Blueprint Session* with Sirah Digital.\n\n📅 Date: ${dateStr}\n⏰ Time: ${selectedSlot.display}\n\n👤 Name: ${name.trim()}\n📧 Email: ${email.trim()}\n📱 Phone: ${fullWhatsapp}\n\n🏢 Business Type: ${businessType}\n\nLooking forward to the call!`
       );
       window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, "_blank");
-      // Fire Meta Pixel Lead conversion event
-      if (typeof (window as any).fbq === "function") {
-        (window as any).fbq("track", "Lead");
-      }
       // Invalidate cache for the booked date so other sessions see updated slots
       slotsCache.current.delete(slotDateKey);
       setConfirmed(true);
